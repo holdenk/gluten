@@ -70,7 +70,7 @@ object ExecUtil {
         result
       }
 
-      override def next: UnsafeRow = {
+      override def next(): UnsafeRow = {
         if (rowId >= batch.numRows()) throw new NoSuchElementException
         val (offset, length) = (info.offsets(rowId), info.lengths(rowId))
         row.pointTo(null, info.memoryAddress + offset, length.toInt)

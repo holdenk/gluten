@@ -165,7 +165,7 @@ abstract class HashAggregateExecBaseTransformer(
       for (expr <- groupingExpressions) {
         if (!expr.isInstanceOf[Attribute]) {
           needsProjection = true
-          break
+          break()
         }
       }
     }
@@ -176,14 +176,14 @@ abstract class HashAggregateExecBaseTransformer(
           !expr.filter.get.isInstanceOf[Literal]
         ) {
           needsProjection = true
-          break
+          break()
         }
         expr.mode match {
           case Partial =>
             for (aggChild <- expr.aggregateFunction.children) {
               if (!aggChild.isInstanceOf[Attribute] && !aggChild.isInstanceOf[Literal]) {
                 needsProjection = true
-                break
+                break()
               }
             }
           // No need to consider pre-projection for PartialMerge and Final Agg.
@@ -215,13 +215,13 @@ abstract class HashAggregateExecBaseTransformer(
                 exprAttr.dataType != resAttr.dataType
               ) {
                 needsProjection = true
-                break
+                break()
               }
             case _ =>
               // If result expression is not instance of Attribute,
               // post-projection is needed.
               needsProjection = true
-              break
+              break()
           }
         }
       }

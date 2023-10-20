@@ -82,7 +82,7 @@ case class ColumnarBuildSideRelation(
         has
       }
 
-      override def next: ColumnarBatch = {
+      override def next(): ColumnarBatch = {
         val handle =
           ColumnarBatchSerializerJniWrapper.create().deserialize(serializeHandle, batches(batchId))
         batchId += 1

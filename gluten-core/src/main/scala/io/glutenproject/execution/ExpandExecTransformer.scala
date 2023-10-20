@@ -93,7 +93,7 @@ case class ExpandExecTransformer(
             selections += -1
           }
         }
-        selectionMaps += selections
+        selectionMaps += selections.toSeq
       }
       // make project
       val preExprNodes = new util.ArrayList[ExpressionNode]()

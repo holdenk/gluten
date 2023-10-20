@@ -28,7 +28,7 @@ import org.apache.commons.lang3.StringUtils
 
 import java.util
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 object SparkMemoryUtil {
   private val mmClazz = classOf[MemoryManager]

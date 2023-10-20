@@ -32,7 +32,7 @@ import io.substrait.proto.JoinRel
 
 import java.util
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 object JoinUtils {
   private def createEnhancement(output: Seq[Attribute]): com.google.protobuf.Any = {

@@ -59,7 +59,7 @@ class WholeStageZippedPartitionsRDD(
         resCtx.root,
         pipelineTime,
         updateNativeMetrics,
-        buildRelationBatchHolder,
+        buildRelationBatchHolder.toSeq,
         materializeInput
       )
   }

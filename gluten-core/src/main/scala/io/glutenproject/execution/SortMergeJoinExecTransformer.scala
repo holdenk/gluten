@@ -35,7 +35,7 @@ import io.substrait.proto.JoinRel
 
 import java.util.{ArrayList => JArrayList}
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 /** Performs a sort merge join of two child relations. */
 case class SortMergeJoinExecTransformer(

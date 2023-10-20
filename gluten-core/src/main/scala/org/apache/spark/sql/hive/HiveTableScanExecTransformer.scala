@@ -42,7 +42,7 @@ import org.apache.hadoop.mapred.TextInputFormat
 
 import java.net.URI
 
-import scala.collection.JavaConverters
+import scala.jdk.CollectionConverters._
 
 class HiveTableScanExecTransformer(
     requestedAttributes: Seq[Attribute],
@@ -155,7 +155,7 @@ class HiveTableScanExecTransformer(
       }
       val readRelNode = transformCtx.root.asInstanceOf[ReadRelNode]
       readRelNode.setDataSchema(getDataSchemas)
-      readRelNode.setProperties(JavaConverters.mapAsJavaMap(options))
+      readRelNode.setProperties(options.asJava)
     }
     transformCtx
   }

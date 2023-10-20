@@ -45,7 +45,7 @@ import io.substrait.proto.JoinRel
 import java.lang.{Long => JLong}
 import java.util.{ArrayList => JArrayList, HashMap => JHashMap}
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.util.control.Breaks.{break, breakable}
 
 trait ColumnarShuffledJoin extends BaseJoinExec {
@@ -441,7 +441,7 @@ abstract class BroadcastHashJoinExecTransformer(
           for (rdd <- streamedRDD) {
             try {
               partitions = rdd.getNumPartitions
-              break
+              break()
             } catch {
               case _: Throwable =>
               // The partitions of this RDD is not decided yet.

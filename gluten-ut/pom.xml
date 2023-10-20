@@ -13,8 +13,8 @@
   limitations under the License.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
@@ -30,7 +30,7 @@
 
   <dependencies>
     <!-- put gluten-core at first so that overwritten spark classes (such as BatchScanExec,
-         EmptyRDD, etc.) can be loaded first -->
+	 EmptyRDD, etc.) can be loaded first -->
     <dependency>
       <groupId>io.glutenproject</groupId>
       <artifactId>gluten-core</artifactId>
@@ -86,7 +86,7 @@
     <dependency>
       <groupId>org.scalacheck</groupId>
       <artifactId>scalacheck_${scala.binary.version}</artifactId>
-      <version>1.13.5</version>
+      <version>1.14.3</version>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -154,24 +154,24 @@
   <build>
     <pluginManagement>
       <plugins>
-        <plugin>
-          <groupId>net.alchim31.maven</groupId>
-          <artifactId>scala-maven-plugin</artifactId>
-          <configuration>
-            <displayCmd>true</displayCmd>
-            <jvmArgs>
-              <jvmArg>-Xss128m</jvmArg>
-            </jvmArgs>
-          </configuration>
-        </plugin>
-        <plugin>
-          <groupId>org.scalastyle</groupId>
-          <artifactId>scalastyle-maven-plugin</artifactId>
-        </plugin>
-        <plugin>
-          <groupId>com.diffplug.spotless</groupId>
-          <artifactId>spotless-maven-plugin</artifactId>
-        </plugin>
+	<plugin>
+	  <groupId>net.alchim31.maven</groupId>
+	  <artifactId>scala-maven-plugin</artifactId>
+	  <configuration>
+	    <displayCmd>true</displayCmd>
+	    <jvmArgs>
+	      <jvmArg>-Xss128m</jvmArg>
+	    </jvmArgs>
+	  </configuration>
+	</plugin>
+	<plugin>
+	  <groupId>org.scalastyle</groupId>
+	  <artifactId>scalastyle-maven-plugin</artifactId>
+	</plugin>
+	<plugin>
+	  <groupId>com.diffplug.spotless</groupId>
+	  <artifactId>spotless-maven-plugin</artifactId>
+	</plugin>
       </plugins>
     </pluginManagement>
 
@@ -181,20 +181,20 @@
     <profile>
       <id>spark-3.2</id>
       <activation>
-        <activeByDefault>true</activeByDefault>
+	<activeByDefault>true</activeByDefault>
       </activation>
       <properties>
       </properties>
       <modules>
-        <module>spark32</module>
-        <module>common</module>
+	<module>spark32</module>
+	<module>common</module>
       </modules>
     </profile>
     <profile>
       <id>spark-3.3</id>
       <modules>
-        <module>spark33</module>
-        <module>common</module>
+	<module>spark33</module>
+	<module>common</module>
       </modules>
     </profile>
   </profiles>

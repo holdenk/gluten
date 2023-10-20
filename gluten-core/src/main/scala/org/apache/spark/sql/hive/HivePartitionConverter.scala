@@ -34,7 +34,8 @@ import org.apache.hadoop.io.compress.CompressionCodecFactory
 
 import java.net.URI
 
-import scala.collection.JavaConverters.asScalaBufferConverter
+import scala.collection.immutable
+import scala.jdk.CollectionConverters._
 
 class HivePartitionConverter(hadoopConf: Configuration, session: SparkSession)
   extends CastSupport
@@ -75,12 +76,12 @@ class HivePartitionConverter(hadoopConf: Configuration, session: SparkSession)
         // FileSystem.listStatus() handles this for HiveTableScanExecTransformer,
         // just like for Apache Spark.
         val uri = p.getDataLocation.toUri
-        val partValues: Seq[Any] = {
+        val partValues = {
           p.getValues.asScala.zip(partitionColTypes).map {
             case (value, dataType) => castFromString(value, dataType)
           }
         }
-        val partValuesAsInternalRow = InternalRow.fromSeq(partValues)
+        val partValuesAsInternalRow = InternalRow.fromSeq(partValues.toSeq)
 
         (uri, partValuesAsInternalRow)
     }
@@ -93,7 +94,7 @@ class HivePartitionConverter(hadoopConf: Configuration, session: SparkSession)
         val path = new Path(directory)
         val fs = path.getFileSystem(hadoopConf)
         val dirContents = fs.listStatus(path).filter(isNonEmptyDataFile)
-        PartitionDirectory(partValues, dirContents)
+        PartitionDirectory(partValues, immutable.ArraySeq.unsafeWrapArray(dirContents))
     }
   }
 

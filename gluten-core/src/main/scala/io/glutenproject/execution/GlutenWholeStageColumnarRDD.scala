@@ -34,7 +34,7 @@ import io.substrait.proto.Plan
 
 import java.io.Serializable
 
-import scala.collection.mutable
+import scala.collection.{immutable, mutable}
 
 trait BaseGlutenPartition extends Partition with InputPartition {
   def plan: Plan
@@ -142,7 +142,7 @@ class GlutenWholeStageColumnarRDD(
   }
 
   override def getPreferredLocations(split: Partition): Seq[String] = {
-    castPartition(split).inputPartition.preferredLocations()
+    immutable.ArraySeq.unsafeWrapArray(castPartition(split).inputPartition.preferredLocations())
   }
 
   private def castPartition(split: Partition): FirstZippedPartitionsPartition = split match {
