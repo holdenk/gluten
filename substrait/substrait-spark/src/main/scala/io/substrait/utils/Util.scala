@@ -44,7 +44,7 @@ object Util {
 
     /** ([ [a, b], [c, d] ], [1, 2]) -> [a, b, 1], [a, b, 2], [c, d, 1], [c, d, 2] */
     val appendAndGenLists: (Seq[ArrayBuffer[T]], Seq[T]) => Seq[Seq[T]] =
-      (products, toJoin) => products.flatMap(product => appendAndGen(product, toJoin))
+      (products, toJoin) => products.flatMap(product => appendAndGen(product, toJoin).toSeq)
     lists.tail.foldLeft(startProduct)(appendAndGenLists).map(_.toSeq)
   }
 
