@@ -79,7 +79,7 @@
     <substrait.version>0.5.0</substrait.version>
     <protobuf.version>3.23.4</protobuf.version>
     <!--spotless-->
-    <spotless.version>2.27.2</spotless.version>
+    <spotless.version>2.40.0</spotless.version>
     <spotless.scalafmt.version>3.5.9</spotless.scalafmt.version>
     <spotless.delimiter>package</spotless.delimiter>
     <spotless.license.header>
@@ -737,7 +737,7 @@
 	    <java>
 	      <toggleOffOn />
 	      <googleJavaFormat>
-		<version>1.7</version>
+		<version>1.8</version>
 	      </googleJavaFormat>
 
 	      <!-- \# refers to the static imports -->
