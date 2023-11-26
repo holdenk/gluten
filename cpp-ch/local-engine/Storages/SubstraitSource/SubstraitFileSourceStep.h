@@ -39,16 +39,6 @@ public:
 private:
     DB::Pipe pipe;
     DB::ContextPtr context;
-    std::vector<DB::String> partition_keys;
-    DB::String file_format;
-
-    DB::NamesAndTypesList extractParquetFileColumnPathAndTypeForComplexType(const DB::String & column_name, const DB::DataTypePtr & column_type);
-};
-
-struct SourceFilter
-{
-    DB::KeyCondition filter;
-    DB::NamesAndTypesList keys;
 };
 
 }

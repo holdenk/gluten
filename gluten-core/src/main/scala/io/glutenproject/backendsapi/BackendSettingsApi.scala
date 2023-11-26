@@ -87,6 +87,8 @@ trait BackendSettingsApi {
   /** Get the config prefix for each backend */
   def getBackendConfigPrefix: String
 
+  def allowDecimalArithmetic: Boolean = true
+
   def rescaleDecimalIntegralExpression(): Boolean = false
 
   def shuffleSupportedCodec(): Set[String]
@@ -95,8 +97,6 @@ trait BackendSettingsApi {
 
   /** Apply necessary conversions before passing to native side */
   def resolveNativeConf(nativeConf: java.util.Map[String, String]): Unit = {}
-
-  def supportBucketScan(): Boolean = false
 
   def insertPostProjectForGenerate(): Boolean = false
 

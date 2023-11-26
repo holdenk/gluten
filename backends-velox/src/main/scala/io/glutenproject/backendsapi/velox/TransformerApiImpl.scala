@@ -17,10 +17,12 @@
 package io.glutenproject.backendsapi.velox
 
 import io.glutenproject.backendsapi.TransformerApi
+import io.glutenproject.exec.Runtimes
 import io.glutenproject.expression.ConverterUtils
 import io.glutenproject.extension.ValidationResult
 import io.glutenproject.substrait.expression.{ExpressionBuilder, ExpressionNode}
 import io.glutenproject.utils.InputPartitionsUtil
+import io.glutenproject.vectorized.PlanEvaluatorJniWrapper
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.expressions.{Attribute, CreateMap, Explode, Generator, JsonTuple, Literal, PosExplode}
@@ -31,7 +33,7 @@ import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, PartitionDi
 import org.apache.spark.sql.types._
 import org.apache.spark.util.collection.BitSet
 
-import java.util
+import java.util.{Map => JMap}
 
 class TransformerApiImpl extends TransformerApi with Logging {
 
@@ -51,6 +53,7 @@ class TransformerApiImpl extends TransformerApi with Logging {
       relation: HadoopFsRelation,
       selectedPartitions: Array[PartitionDirectory],
       output: Seq[Attribute],
+      bucketedScan: Boolean,
       optionalBucketSet: Option[BitSet],
       optionalNumCoalescedBuckets: Option[Int],
       disableBucketedScan: Boolean): Seq[InputPartition] = {
@@ -58,6 +61,7 @@ class TransformerApiImpl extends TransformerApi with Logging {
       relation,
       selectedPartitions,
       output,
+      bucketedScan,
       optionalBucketSet,
       optionalNumCoalescedBuckets,
       disableBucketedScan)
@@ -65,7 +69,7 @@ class TransformerApiImpl extends TransformerApi with Logging {
   }
 
   override def postProcessNativeConfig(
-      nativeConfMap: util.Map[String, String],
+      nativeConfMap: JMap[String, String],
       backendPrefix: String): Unit = {
     // TODO: IMPLEMENT SPECIAL PROCESS FOR VELOX BACKEND
   }
@@ -120,5 +124,15 @@ class TransformerApiImpl extends TransformerApi with Logging {
       nullOnOverflow: Boolean): ExpressionNode = {
     val typeNode = ConverterUtils.getTypeNode(dataType, nullable)
     ExpressionBuilder.makeCast(typeNode, childNode, !nullOnOverflow)
+  }
+
+  override def getNativePlanString(substraitPlan: Array[Byte], details: Boolean): String = {
+    val tmpRuntime = Runtimes.tmpInstance()
+    try {
+      val jniWrapper = PlanEvaluatorJniWrapper.forRuntime(tmpRuntime)
+      jniWrapper.nativePlanString(substraitPlan, details)
+    } finally {
+      tmpRuntime.release()
+    }
   }
 }

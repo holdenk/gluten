@@ -74,7 +74,24 @@ function(ADD_VELOX_DEPENDENCY VELOX_DEP_LIB_NAME VELOX_DEP_LIB_PATH)
   target_link_libraries(velox PUBLIC ${VELOX_DEP_LIB})
 endfunction()
 
+macro(ADD_VELOX_OBJECTS)
+  add_library(velox_objects OBJECT IMPORTED GLOBAL)
+  set_property(TARGET velox_objects PROPERTY IMPORTED_OBJECTS
+          "${VELOX_COMPONENTS_PATH}/connectors/hive/CMakeFiles/velox_hive_connector.dir/FileHandle.cpp.o"
+          "${VELOX_COMPONENTS_PATH}/connectors/hive/CMakeFiles/velox_hive_connector.dir/HiveConfig.cpp.o"
+          "${VELOX_COMPONENTS_PATH}/connectors/hive/CMakeFiles/velox_hive_connector.dir/HiveConnector.cpp.o"
+          "${VELOX_COMPONENTS_PATH}/connectors/hive/CMakeFiles/velox_hive_connector.dir/HiveDataSink.cpp.o"
+          "${VELOX_COMPONENTS_PATH}/connectors/hive/CMakeFiles/velox_hive_connector.dir/HiveDataSource.cpp.o"
+          "${VELOX_COMPONENTS_PATH}/connectors/hive/CMakeFiles/velox_hive_connector.dir/HivePartitionUtil.cpp.o"
+          "${VELOX_COMPONENTS_PATH}/connectors/hive/CMakeFiles/velox_hive_connector.dir/PartitionIdGenerator.cpp.o"
+          "${VELOX_COMPONENTS_PATH}/connectors/hive/CMakeFiles/velox_hive_connector.dir/SplitReader.cpp.o"
+          "${VELOX_COMPONENTS_PATH}/connectors/hive/CMakeFiles/velox_hive_connector.dir/TableHandle.cpp.o"
+          )
+  target_link_libraries(velox PUBLIC velox_objects)
+endmacro()
+
 macro(ADD_VELOX_DEPENDENCIES)
+  add_velox_objects()
   add_velox_dependency(functions::sparksql::lib "${VELOX_COMPONENTS_PATH}/functions/sparksql/libvelox_functions_spark.a")
   add_velox_dependency(functions::sparksql::agg "${VELOX_COMPONENTS_PATH}/functions/sparksql/aggregates/libvelox_functions_spark_aggregates.a")
   add_velox_dependency(functions::window::sparksql "${VELOX_COMPONENTS_PATH}/functions/sparksql/window/libvelox_functions_spark_window.a")
@@ -84,7 +101,6 @@ macro(ADD_VELOX_DEPENDENCIES)
   add_velox_dependency(functions::lib::window "${VELOX_COMPONENTS_PATH}/functions/lib/window/libvelox_functions_window.a")
   add_velox_dependency(velox::buffer "${VELOX_COMPONENTS_PATH}/buffer/libvelox_buffer.a")
 
-  add_velox_dependency(exec "${VELOX_COMPONENTS_PATH}/exec/libvelox_exec.a")
   add_velox_dependency(functions::isnull "${VELOX_COMPONENTS_PATH}/functions/lib/libvelox_is_null_functions.a")
   add_velox_dependency(functions::prestosql "${VELOX_COMPONENTS_PATH}/functions/prestosql/registration/libvelox_functions_prestosql.a")
   add_velox_dependency(functions::prestosql::impl "${VELOX_COMPONENTS_PATH}/functions/prestosql/libvelox_functions_prestosql_impl.a")
@@ -96,6 +112,7 @@ macro(ADD_VELOX_DEPENDENCIES)
     add_velox_dependency(temp::path "${VELOX_COMPONENTS_PATH}/exec/tests/utils/libvelox_temp_path.a")
     add_velox_dependency(dwio::common::test::utils "${VELOX_COMPONENTS_PATH}/dwio/common/tests/utils/libvelox_dwio_common_test_utils.a")
   endif()
+  add_velox_dependency(exec "${VELOX_COMPONENTS_PATH}/exec/libvelox_exec.a")
   add_velox_dependency(common::test_util "${VELOX_COMPONENTS_PATH}/common/testutil/libvelox_test_util.a")
   add_velox_dependency(parse::parser "${VELOX_COMPONENTS_PATH}/parse/libvelox_parse_parser.a")
   if(BUILD_TESTS)
@@ -108,30 +125,31 @@ macro(ADD_VELOX_DEPENDENCIES)
   endif()
   add_velox_dependency(vector::arrow::bridge "${VELOX_COMPONENTS_PATH}/vector/arrow/libvelox_arrow_bridge.a")
   add_velox_dependency(row "${VELOX_COMPONENTS_PATH}/row/libvelox_row_fast.a")
-  add_velox_dependency(connector::hive "${VELOX_COMPONENTS_PATH}/connectors/hive/libvelox_hive_connector.a")
   add_velox_dependency(connector "${VELOX_COMPONENTS_PATH}/connectors/libvelox_connector.a")
   add_velox_dependency(connector::hive_parition "${VELOX_COMPONENTS_PATH}/connectors/hive/libvelox_hive_partition_function.a")
   if(ENABLE_HDFS)
     add_velox_dependency(connector::hive::hdfs "${VELOX_COMPONENTS_PATH}/connectors/hive/storage_adapters/hdfs/libvelox_hdfs.a")
   endif()
+  if(ENABLE_GCS)
+    add_velox_dependency(connector::hive::gcs "${VELOX_COMPONENTS_PATH}/connectors/hive/storage_adapters/gcs/libvelox_gcs.a")
+  endif()
   if(ENABLE_S3)
     add_velox_dependency(connector::hive::s3fs "${VELOX_COMPONENTS_PATH}/connectors/hive/storage_adapters/s3fs/libvelox_s3fs.a")
   endif()
-  add_velox_dependency(dwio::dwrf::test_utils "${VELOX_COMPONENTS_PATH}/dwio/dwrf/test/utils/libvelox_dwrf_test_utils.a")
   add_velox_dependency(dwio::dwrf::writer "${VELOX_COMPONENTS_PATH}/dwio/dwrf/writer/libvelox_dwio_dwrf_writer.a")
   add_velox_dependency(dwio::dwrf::reader "${VELOX_COMPONENTS_PATH}/dwio/dwrf/reader/libvelox_dwio_dwrf_reader.a")
   add_velox_dependency(dwio::dwrf::utils "${VELOX_COMPONENTS_PATH}/dwio/dwrf/utils/libvelox_dwio_dwrf_utils.a")
   add_velox_dependency(dwio::dwrf::common "${VELOX_COMPONENTS_PATH}/dwio/dwrf/common/libvelox_dwio_dwrf_common.a")
-  add_velox_dependency(dwio::common::utils "${VELOX_COMPONENTS_PATH}/dwio/common/tests/utils/libvelox_dwio_common_test_utils.a")
   add_velox_dependency(parquet "${VELOX_COMPONENTS_PATH}/dwio/parquet/libvelox_dwio_parquet_reader.a")
   add_velox_dependency(parquet::reader::native "${VELOX_COMPONENTS_PATH}/dwio/parquet/reader/libvelox_dwio_native_parquet_reader.a")
-  add_velox_dependency(parquet::reader::duckdb_conversion "${VELOX_COMPONENTS_PATH}/duckdb/conversion/libvelox_duckdb_conversion.a")
-  add_velox_dependency(duckdb::duckdb "${VELOX_COMPONENTS_PATH}/external/duckdb/libduckdb.a")
-  add_velox_dependency(parquet::reader::duckdb_tpch_extension "${VELOX_COMPONENTS_PATH}/external/duckdb/tpch/libtpch_extension.a")
   if(BUILD_TESTS)
+    add_velox_dependency(dwio::common::utils "${VELOX_COMPONENTS_PATH}/dwio/common/tests/utils/libvelox_dwio_common_test_utils.a")
+    add_velox_dependency(dwio::dwrf::test_utils "${VELOX_COMPONENTS_PATH}/dwio/dwrf/test/utils/libvelox_dwrf_test_utils.a")
+    add_velox_dependency(parquet::reader::duckdb_conversion "${VELOX_COMPONENTS_PATH}/duckdb/conversion/libvelox_duckdb_conversion.a")
+    add_velox_dependency(duckdb::duckdb "${VELOX_COMPONENTS_PATH}/external/duckdb/libduckdb.a")
     add_velox_dependency(tpch::gen "${VELOX_COMPONENTS_PATH}/tpch/gen/libvelox_tpch_gen.a")
+    add_velox_dependency(dbgen "${VELOX_COMPONENTS_PATH}/tpch/gen/dbgen/libvelox_dbgen.a")
   endif()
-  add_velox_dependency(dbgen "${VELOX_COMPONENTS_PATH}/external/duckdb/tpch/dbgen/libdbgen.a")
 
   add_velox_dependency(parquet::reader::thrift "${VELOX_COMPONENTS_PATH}/dwio/parquet/thrift/libvelox_dwio_parquet_thrift.a")
 
@@ -176,7 +194,7 @@ macro(ADD_VELOX_DEPENDENCIES)
   add_velox_dependency(external::md5 "${VELOX_COMPONENTS_PATH}/external/md5/libmd5.a")
   add_velox_dependency(external::date "${VELOX_COMPONENTS_PATH}/external/date/libvelox_external_date.a")
   add_velox_dependency(velox::parquet::writer "${VELOX_COMPONENTS_PATH}/dwio/parquet/libvelox_dwio_parquet_writer.a")
-  
+
   if(BUILD_TESTS)
     add_velox_dependency(vector::test::util "${VELOX_COMPONENTS_PATH}/vector/tests/utils/libvelox_vector_test_lib.a")
   endif()
@@ -228,11 +246,17 @@ macro(find_awssdk)
   find_package(AWSSDK REQUIRED COMPONENTS s3;identity-management)
 endmacro()
 
+macro(find_gcssdk)
+  set (CMAKE_FIND_LIBRARY_SUFFIXES ".so")
+  find_package(google_cloud_cpp_storage REQUIRED)
+endmacro()
+
+
 
 # Build Velox backend.
 set(VELOX_SRCS
     compute/VeloxBackend.cc
-    compute/VeloxExecutionCtx.cc
+    compute/VeloxRuntime.cc
     compute/WholeStageResultIterator.cc
     compute/VeloxPlanConverter.cc
     jni/VeloxJniWrapper.cc
@@ -241,18 +265,20 @@ set(VELOX_SRCS
     memory/VeloxColumnarBatch.cc
     memory/VeloxMemoryManager.cc
     operators/functions/RegistrationAllFunctions.cc
+    operators/functions/RowConstructorWithNull.cc
+    operators/functions/SparkTokenizer.cc
     operators/serializer/VeloxColumnarToRowConverter.cc
     operators/serializer/VeloxColumnarBatchSerializer.cc
     operators/serializer/VeloxRowToColumnarConverter.cc
     operators/writer/VeloxParquetDatasource.cc
     shuffle/VeloxShuffleReader.cc
+    shuffle/VeloxShuffleUtils.cc
     shuffle/VeloxShuffleWriter.cc
     substrait/SubstraitParser.cc
     substrait/SubstraitToVeloxExpr.cc
     substrait/SubstraitToVeloxPlan.cc
     substrait/SubstraitToVeloxPlanValidator.cc
     substrait/VariantToVectorConverter.cc
-    substrait/TypeUtils.cc
     substrait/SubstraitExtensionCollector.cc
     substrait/VeloxSubstraitSignature.cc
     substrait/VeloxToSubstraitExpr.cc
@@ -263,6 +289,11 @@ set(VELOX_SRCS
     utils/ConfigExtractor.cc
     utils/Common.cc
     )
+
+if(BUILD_TESTS OR BUILD_BENCHMARKS)
+  list(APPEND VELOX_SRCS utils/tests/MemoryPoolUtils.cc)
+endif()
+
 add_library(velox SHARED ${VELOX_SRCS})
 
 if(ENABLE_GLUTEN_VCPKG)
@@ -274,13 +305,9 @@ target_include_directories(velox PUBLIC
     ${CMAKE_SYSTEM_INCLUDE_PATH}
     ${JNI_INCLUDE_DIRS}
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${root_directory}/src
-    ${VELOX_HOME}
-    ${VELOX_BUILD_PATH}
+    ${VELOX_HOME}/
+    ${VELOX_BUILD_PATH}/
     ${VELOX_BUILD_PATH}/_deps/xsimd-src/include/
-    ${VELOX_HOME}/velox/vector
-    ${VELOX_HOME}/velox/connectors
-    ${VELOX_HOME}/velox/external/xxhash/
     ${VELOX_HOME}/third_party/xsimd/include/)
 
 set_target_properties(velox PROPERTIES
@@ -292,18 +319,18 @@ set_target_properties(velox PROPERTIES
 ## It is also applicable to other dependencies.
 find_package(Folly REQUIRED CONFIG)
 
-if(ENABLE_GLUTEN_VCPKG)
-  find_package(gflags REQUIRED COMPONENTS static CONFIG)
-else()
-  find_package(gflags REQUIRED COMPONENTS shared CONFIG)
-endif()
-
 target_include_directories(velox PUBLIC
         ${GTEST_INCLUDE_DIRS}
         ${PROTOBUF_INCLUDE})
 
 target_link_libraries(velox PUBLIC gluten)
 add_velox_dependencies()
+
+# Arrow libraries appear after Velox dependencies to avoid linker error
+find_arrow_lib(${ARROW_LIB_NAME})
+find_arrow_lib(${PARQUET_LIB_NAME})
+target_link_libraries(velox PUBLIC Arrow::arrow Arrow::parquet)
+
 target_link_libraries(velox PUBLIC Folly::folly)
 find_re2()
 target_link_libraries(velox PUBLIC ${RE2_LIBRARY})
@@ -333,20 +360,26 @@ if(BUILD_TESTS)
   add_subdirectory(tests)
 endif()
 
+if(BUILD_BENCHMARKS)
+  add_subdirectory(benchmarks)
+endif()
+
 if(ENABLE_HDFS)
   add_definitions(-DENABLE_HDFS)
   find_libhdfs3()
   target_link_libraries(velox PUBLIC HDFS::hdfs3)
 endif()
 
-if(BUILD_BENCHMARKS)
-  add_subdirectory(benchmarks)
-endif()
-
 if(ENABLE_S3)
   add_definitions(-DENABLE_S3)
   find_awssdk()
   target_link_libraries(velox PUBLIC ${AWSSDK_LIBRARIES})
+endif()
+
+if(ENABLE_GCS)
+  add_definitions(-DENABLE_GCS)
+  find_gcssdk()
+  target_link_libraries(velox PUBLIC google-cloud-cpp::storage)
 endif()
 
 if(BUILD_EXAMPLES)

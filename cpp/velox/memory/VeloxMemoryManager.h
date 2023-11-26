@@ -27,11 +27,12 @@ namespace gluten {
 
 class VeloxMemoryManager final : public MemoryManager {
  public:
-  explicit VeloxMemoryManager(
+  VeloxMemoryManager(
       const std::string& name,
       std::shared_ptr<MemoryAllocator> allocator,
       std::unique_ptr<AllocationListener> listener);
 
+  ~VeloxMemoryManager() override;
   VeloxMemoryManager(const VeloxMemoryManager&) = delete;
   VeloxMemoryManager(VeloxMemoryManager&&) = delete;
   VeloxMemoryManager& operator=(const VeloxMemoryManager&) = delete;
@@ -45,6 +46,10 @@ class VeloxMemoryManager final : public MemoryManager {
     return veloxLeafPool_;
   }
 
+  facebook::velox::memory::MemoryManager* getMemoryManager() const {
+    return veloxMemoryManager_.get();
+  }
+
   arrow::MemoryPool* getArrowMemoryPool() override {
     return arrowPool_.get();
   }
@@ -53,7 +58,11 @@ class VeloxMemoryManager final : public MemoryManager {
 
   const int64_t shrink(int64_t size) override;
 
+  void hold() override;
+
  private:
+  bool tryDestructSafe();
+
   std::string name_;
 
 #ifdef GLUTEN_ENABLE_HBM
@@ -68,6 +77,7 @@ class VeloxMemoryManager final : public MemoryManager {
   std::unique_ptr<facebook::velox::memory::MemoryManager> veloxMemoryManager_;
   std::shared_ptr<facebook::velox::memory::MemoryPool> veloxAggregatePool_;
   std::shared_ptr<facebook::velox::memory::MemoryPool> veloxLeafPool_;
+  std::vector<std::shared_ptr<facebook::velox::memory::MemoryPool>> heldVeloxPools_;
 };
 
 /// Not tracked by Spark and should only used in test or validation.

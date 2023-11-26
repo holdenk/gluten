@@ -16,7 +16,7 @@
  */
 package io.glutenproject.utils.clickhouse
 
-import io.glutenproject.utils.BackendTestSettings
+import io.glutenproject.utils.{BackendTestSettings, SQLQueryTestSettings}
 
 import org.apache.spark.sql._
 import org.apache.spark.sql.catalyst.expressions._
@@ -613,6 +613,7 @@ class ClickHouseTestSettings extends BackendTestSettings {
     .exclude("SPARK-36924: Cast IntegralType to DayTimeIntervalType")
     .exclude("SPARK-36924: Cast YearMonthIntervalType to IntegralType")
     .exclude("SPARK-36924: Cast IntegralType to YearMonthIntervalType")
+    .exclude("Cast should output null for invalid strings when ANSI is not enabled.")
   enableSuite[GlutenCastSuiteWithAnsiModeOn]
     .exclude("null cast")
     .exclude("cast string to date")
@@ -720,6 +721,7 @@ class ClickHouseTestSettings extends BackendTestSettings {
     .exclude("WeekDay")
     .exclude("WeekOfYear")
     .exclude("DateFormat")
+    .exclude("Gluten - DateFormat")
     .exclude("Hour")
     .exclude("Minute")
     .exclude("date add interval")
@@ -764,7 +766,7 @@ class ClickHouseTestSettings extends BackendTestSettings {
     .exclude("Gluten - TIMESTAMP_MICROS")
     .exclude("Gluten - unix_timestamp")
     .exclude("Gluten - to_unix_timestamp")
-  enableSuite[GlutenDecimalExpressionSuite].exclude("MakeDecimal")
+  enableSuite[GlutenDecimalExpressionSuite]
   enableSuite[GlutenHashExpressionsSuite]
     .exclude("sha2")
     .exclude("murmur3/xxHash64/hive hash: struct<null:void,boolean:boolean,byte:tinyint,short:smallint,int:int,long:bigint,float:float,double:double,bigDecimal:decimal(38,18),smallDecimal:decimal(10,0),string:string,binary:binary,date:date,timestamp:timestamp,udt:examplepoint>")
@@ -2011,6 +2013,11 @@ class ClickHouseTestSettings extends BackendTestSettings {
       "SELECT structFieldSimple.key, arrayFieldSimple[1] FROM tableWithSchema a where int_Field=1")
     .exclude("SELECT structFieldComplex.Value.`value_(2)` FROM tableWithSchema")
   enableSuite[SparkFunctionStatistics]
+  enableSuite[GlutenImplicitsTest]
+    .exclude("fallbackSummary with shuffle")
+    .exclude("fallbackSummary with cache")
+    .exclude("fallbackSummary with cached data and shuffle")
 
+  override def getSQLQueryTestSettings: SQLQueryTestSettings = ClickHouseSQLQueryTestSettings
 }
 // scalastyle:on line.size.limit

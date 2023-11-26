@@ -16,9 +16,9 @@
  */
 package io.glutenproject.vectorized;
 
-import io.glutenproject.exec.ExecutionCtx;
-import io.glutenproject.exec.ExecutionCtxAware;
-import io.glutenproject.exec.ExecutionCtxs;
+import io.glutenproject.exec.Runtime;
+import io.glutenproject.exec.RuntimeAware;
+import io.glutenproject.exec.Runtimes;
 import io.glutenproject.validate.NativePlanValidationInfo;
 
 /**
@@ -26,24 +26,24 @@ import io.glutenproject.validate.NativePlanValidationInfo;
  * This file is used to generate the .h files required for jni. Avoid all external dependencies in
  * this file.
  */
-public class PlanEvaluatorJniWrapper implements ExecutionCtxAware {
-  private final ExecutionCtx ctx;
+public class PlanEvaluatorJniWrapper implements RuntimeAware {
+  private final Runtime runtime;
 
-  private PlanEvaluatorJniWrapper(ExecutionCtx ctx) {
-    this.ctx = ctx;
+  private PlanEvaluatorJniWrapper(Runtime runtime) {
+    this.runtime = runtime;
   }
 
   public static PlanEvaluatorJniWrapper create() {
-    return new PlanEvaluatorJniWrapper(ExecutionCtxs.contextInstance());
+    return new PlanEvaluatorJniWrapper(Runtimes.contextInstance());
   }
 
-  public static PlanEvaluatorJniWrapper forCtx(ExecutionCtx ctx) {
-    return new PlanEvaluatorJniWrapper(ctx);
+  public static PlanEvaluatorJniWrapper forRuntime(Runtime runtime) {
+    return new PlanEvaluatorJniWrapper(runtime);
   }
 
   @Override
-  public long ctxHandle() {
-    return ctx.getHandle();
+  public long handle() {
+    return runtime.getHandle();
   }
 
   /**
@@ -53,6 +53,8 @@ public class PlanEvaluatorJniWrapper implements ExecutionCtxAware {
    * @return whether the computing of this plan is supported in native and related info.
    */
   native NativePlanValidationInfo nativeValidateWithFailureReason(byte[] subPlan);
+
+  public native String nativePlanString(byte[] substraitPlan, Boolean details);
 
   /**
    * Create a native compute kernel and return a columnar result iterator.
@@ -70,14 +72,4 @@ public class PlanEvaluatorJniWrapper implements ExecutionCtxAware {
       boolean saveInputToFile,
       String spillDir)
       throws RuntimeException;
-
-  /** Create a native compute kernel and return a row iterator. */
-  native long nativeCreateKernelWithRowIterator(byte[] wsPlan) throws RuntimeException;
-
-  /**
-   * Closes the projector referenced by nativeHandler.
-   *
-   * @param nativeHandler nativeHandler that needs to be closed
-   */
-  native void nativeClose(long nativeHandler);
 }

@@ -26,7 +26,7 @@ import io.glutenproject.utils.PhysicalPlanSelector
 import org.apache.spark.api.python.EvalPythonExecTransformer
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.AttributeReference
+import org.apache.spark.sql.catalyst.expressions.{AttributeReference, SortOrder}
 import org.apache.spark.sql.catalyst.optimizer.{BuildLeft, BuildRight}
 import org.apache.spark.sql.catalyst.plans.FullOuter
 import org.apache.spark.sql.catalyst.rules.Rule
@@ -313,8 +313,10 @@ case class AddTransformHintRule() extends Rule[SparkPlan] {
 
   /** Inserts a transformable tag on top of those that are not supported. */
   private def addTransformableTags(plan: SparkPlan): SparkPlan = {
-    addTransformableTag(plan)
-    plan.withNewChildren(plan.children.map(addTransformableTags))
+    // Walk the tree with post-order
+    val out = plan.withNewChildren(plan.children.map(addTransformableTags))
+    addTransformableTag(out)
+    out
   }
 
   private def addTransformableTag(plan: SparkPlan): Unit = {
@@ -551,7 +553,9 @@ case class AddTransformHintRule() extends Rule[SparkPlan] {
             maybeExchange match {
               case Some(exchange @ BroadcastExchangeExec(mode, child)) =>
                 TransformHints.tag(bhj, isBhjTransformable.toTransformHint)
-                TransformHints.tagNotTransformable(exchange, isBhjTransformable)
+                if (!isBhjTransformable.isValid) {
+                  TransformHints.tagNotTransformable(exchange, isBhjTransformable)
+                }
               case None =>
                 // we are in AQE, find the hidden exchange
                 // FIXME did we consider the case that AQE: OFF && Reuse: ON ?
@@ -677,12 +681,17 @@ case class AddTransformHintRule() extends Rule[SparkPlan] {
               "columnar topK is not enabled in TakeOrderedAndProjectExec")
           } else {
             var tagged: ValidationResult = null
-            val limitPlan = LimitTransformer(plan.child, 0, plan.limit)
-            tagged = limitPlan.doValidate()
-            if (tagged.isValid) {
+            val orderingSatisfies =
+              SortOrder.orderingSatisfies(plan.child.outputOrdering, plan.sortOrder)
+            if (orderingSatisfies) {
+              val limitPlan = LimitTransformer(plan.child, 0, plan.limit)
+              tagged = limitPlan.doValidate()
+            } else {
               val sortPlan = SortExecTransformer(plan.sortOrder, false, plan.child)
-              tagged = sortPlan.doValidate()
+              val limitPlan = LimitTransformer(sortPlan, 0, plan.limit)
+              tagged = limitPlan.doValidate()
             }
+
             if (tagged.isValid) {
               val projectPlan = ProjectExecTransformer(plan.projectList, plan.child)
               tagged = projectPlan.doValidate()

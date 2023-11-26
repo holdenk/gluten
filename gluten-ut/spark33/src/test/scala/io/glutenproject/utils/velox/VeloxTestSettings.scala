@@ -16,7 +16,7 @@
  */
 package io.glutenproject.utils.velox
 
-import io.glutenproject.utils.BackendTestSettings
+import io.glutenproject.utils.{BackendTestSettings, SQLQueryTestSettings}
 
 import org.apache.spark.sql._
 import org.apache.spark.sql.catalyst.expressions.{GlutenAnsiCastSuiteWithAnsiModeOff, GlutenAnsiCastSuiteWithAnsiModeOn, GlutenArithmeticExpressionSuite, GlutenBitwiseExpressionsSuite, GlutenCastSuite, GlutenCastSuiteWithAnsiModeOn, GlutenCollectionExpressionsSuite, GlutenComplexTypeSuite, GlutenConditionalExpressionSuite, GlutenDateExpressionsSuite, GlutenDecimalExpressionSuite, GlutenHashExpressionsSuite, GlutenIntervalExpressionsSuite, GlutenLiteralExpressionSuite, GlutenMathExpressionsSuite, GlutenMiscExpressionsSuite, GlutenNondeterministicSuite, GlutenNullExpressionsSuite, GlutenPredicateSuite, GlutenRandomSuite, GlutenRegexpExpressionsSuite, GlutenSortOrderExpressionsSuite, GlutenStringExpressionsSuite, GlutenTryCastSuite}
@@ -146,6 +146,8 @@ class VeloxTestSettings extends BackendTestSettings {
     .exclude("to_unix_timestamp")
     // Unsupported format: yyyy-MM-dd HH:mm:ss.SSS
     .exclude("SPARK-33498: GetTimestamp,UnixTimestamp,ToUnixTimestamp with parseError")
+    // Replaced by a gluten test to pass timezone through config.
+    .exclude("DateFormat")
   enableSuite[GlutenDecimalExpressionSuite]
   enableSuite[GlutenHashExpressionsSuite]
   enableSuite[GlutenIntervalExpressionsSuite]
@@ -623,6 +625,8 @@ class VeloxTestSettings extends BackendTestSettings {
     .exclude("Non-vectorized reader - with partition data column - SPARK-38977: schema pruning with correlated NOT IN subquery")
     .disableByReason("Blocked by ORC Velox upstream not ready")
   enableSuite[GlutenParquetColumnIndexSuite]
+    // Rewrite by just removing test timestamp.
+    .exclude("test reading unaligned pages - test all types")
   enableSuite[GlutenParquetCompressionCodecPrecedenceSuite]
   enableSuite[GlutenParquetDeltaByteArrayEncodingSuite]
   enableSuite[GlutenParquetDeltaEncodingInteger]
@@ -643,6 +647,8 @@ class VeloxTestSettings extends BackendTestSettings {
     // Rewrite.
     .exclude("Filter applied on merged Parquet schema with new column should work")
     .exclude("SPARK-23852: Broken Parquet push-down for partially-written stats")
+    // Rewrite for supported INT96 - timestamp.
+    .exclude("filter pushdown - timestamp")
     .exclude("filter pushdown - date")
     // Exception bebaviour.
     .exclude("SPARK-25207: exception when duplicate fields in case-insensitive mode")
@@ -659,6 +665,8 @@ class VeloxTestSettings extends BackendTestSettings {
     // Rewrite.
     .exclude("Filter applied on merged Parquet schema with new column should work")
     .exclude("SPARK-23852: Broken Parquet push-down for partially-written stats")
+    // Rewrite for supported INT96 - timestamp.
+    .exclude("filter pushdown - timestamp")
     .exclude("filter pushdown - date")
     // Exception bebaviour.
     .exclude("SPARK-25207: exception when duplicate fields in case-insensitive mode")
@@ -893,9 +901,7 @@ class VeloxTestSettings extends BackendTestSettings {
     .exclude("Gluten - determining the number of reducers: join operator")
     .exclude("Gluten - determining the number of reducers: complex query 1")
     .exclude("Gluten - determining the number of reducers: complex query 2")
-    .exclude("SPARK-24705 adaptive query execution works correctly when exchange reuse enabled")
     .exclude("Union two datasets with different pre-shuffle partition number")
-    .exclude("SPARK-34790: enable IO encryption in AQE partition coalescing")
   enableSuite[GlutenExchangeSuite]
     // ColumnarShuffleExchangeExec does not support doExecute() method
     .exclude("shuffling UnsafeRows in exchange")
@@ -1064,10 +1070,14 @@ class VeloxTestSettings extends BackendTestSettings {
   enableSuite[GlutenDynamicPartitionPruningV1SuiteAEOn]
   enableSuite[GlutenDynamicPartitionPruningV1SuiteAEOnDisableScan]
   enableSuite[GlutenDynamicPartitionPruningV1SuiteAEOffDisableScan]
+  enableSuite[GlutenDynamicPartitionPruningV1SuiteAEOffWSCGOnDisableProject]
+  enableSuite[GlutenDynamicPartitionPruningV1SuiteAEOffWSCGOffDisableProject]
   enableSuite[GlutenDynamicPartitionPruningV2SuiteAEOff]
   enableSuite[GlutenDynamicPartitionPruningV2SuiteAEOn]
   enableSuite[GlutenDynamicPartitionPruningV2SuiteAEOnDisableScan]
   enableSuite[GlutenDynamicPartitionPruningV2SuiteAEOffDisableScan]
+  enableSuite[GlutenDynamicPartitionPruningV2SuiteAEOffWSCGOnDisableProject]
+  enableSuite[GlutenDynamicPartitionPruningV2SuiteAEOffWSCGOffDisableProject]
   enableSuite[GlutenExpressionsSchemaSuite]
   enableSuite[GlutenExtraStrategiesSuite]
   enableSuite[GlutenFileBasedDataSourceSuite]
@@ -1162,5 +1172,8 @@ class VeloxTestSettings extends BackendTestSettings {
   enableSuite[GlutenHiveSQLQuerySuite]
     // ReaderFactory is not registered for format orc.
     .exclude("hive orc scan")
+  enableSuite[GlutenImplicitsTest]
+
+  override def getSQLQueryTestSettings: SQLQueryTestSettings = VeloxSQLQueryTestSettings
 }
 // scalastyle:on line.size.limit

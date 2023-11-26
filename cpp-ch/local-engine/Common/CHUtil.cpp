@@ -17,7 +17,7 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
-#include <AggregateFunctions/AggregateFunctionCombinatorFactory.h>
+#include <AggregateFunctions/Combinators/AggregateFunctionCombinatorFactory.h>
 #include <AggregateFunctions/registerAggregateFunctions.h>
 #include <Columns/ColumnArray.h>
 #include <Columns/ColumnConst.h>
@@ -398,9 +398,9 @@ const DB::ActionsDAG::Node * ActionsDAGUtil::convertNodeType(
     type_name_col.type = std::make_shared<DB::DataTypeString>();
     const auto * right_arg = &actions_dag->addColumn(std::move(type_name_col));
     const auto * left_arg = node;
-    DB::FunctionCastBase::Diagnostic diagnostic = {node->result_name, node->result_name};
+    DB::CastDiagnostic diagnostic = {node->result_name, node->result_name};
     DB::FunctionOverloadResolverPtr func_builder_cast
-        = DB::CastInternalOverloadResolver<DB::CastType::nonAccurate>::createImpl(std::move(diagnostic));
+        = DB::createInternalCastOverloadResolver(DB::CastType::nonAccurate, std::move(diagnostic));
 
     DB::ActionsDAG::NodeRawConstPtrs children = {left_arg, right_arg};
     return &actions_dag->addFunction(func_builder_cast, std::move(children), result_name);
@@ -438,7 +438,9 @@ std::map<std::string, std::string> BackendInitializerUtil::getBackendConfMap(std
             namespace pb_util = google::protobuf::util;
             pb_util::JsonOptions options;
             std::string json;
-            pb_util::MessageToJsonString(*plan_ptr, &json, options);
+            auto s = pb_util::MessageToJsonString(*plan_ptr, &json, options);
+            if (!s.ok())
+                throw Exception(ErrorCodes::LOGICAL_ERROR, "Can not convert Substrait Plan to Json");
             LOG_DEBUG(&Poco::Logger::get("CHUtil"), "Update Config Map Plan:\n{}", json);
         }
 
@@ -598,6 +600,8 @@ void BackendInitializerUtil::initSettings(std::map<std::string, std::string> & b
     settings.set("input_format_parquet_import_nested", true);
     settings.set("input_format_json_read_numbers_as_strings", true);
     settings.set("input_format_json_read_bools_as_numbers", false);
+    settings.set("input_format_csv_trim_whitespaces", false);
+    settings.set("input_format_csv_allow_cr_end_of_line", true);
     settings.set("output_format_orc_string_as_string", true);
     settings.set("output_format_parquet_version", "1.0");
     settings.set("output_format_parquet_compression_method", "snappy");
@@ -605,10 +609,10 @@ void BackendInitializerUtil::initSettings(std::map<std::string, std::string> & b
     settings.set("output_format_parquet_fixed_string_as_fixed_byte_array", false);
     settings.set("output_format_json_quote_64bit_integers", false);
     settings.set("output_format_json_quote_denormals", true);
+    settings.set("output_format_json_skip_null_value_in_named_tuples", true);
     settings.set("function_json_value_return_type_allow_complex", true);
     settings.set("function_json_value_return_type_allow_nullable", true);
-
-
+    settings.set("precise_float_parsing", true);
 }
 
 void BackendInitializerUtil::initContexts(DB::Context::ConfigurationPtr config)
@@ -700,6 +704,13 @@ void BackendInitializerUtil::initCompiledExpressionCache(DB::Context::Configurat
 
     CompiledExpressionCacheFactory::instance().init(compiled_expression_cache_size, compiled_expression_cache_elements_size);
 #endif
+}
+
+void BackendInitializerUtil::init_json(std::string * plan_json)
+{
+    auto plan_ptr = std::make_unique<substrait::Plan>();
+    google::protobuf::util::JsonStringToMessage(plan_json->c_str(), plan_ptr.get());
+    return init(new String(plan_ptr->SerializeAsString()));
 }
 
 void BackendInitializerUtil::init(std::string * plan)

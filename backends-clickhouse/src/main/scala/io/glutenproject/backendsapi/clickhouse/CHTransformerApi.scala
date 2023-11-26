@@ -21,7 +21,7 @@ import io.glutenproject.backendsapi.{BackendsApiManager, TransformerApi}
 import io.glutenproject.execution.CHHashAggregateExecTransformer
 import io.glutenproject.expression.{ConverterUtils, ExpressionConverter}
 import io.glutenproject.substrait.SubstraitContext
-import io.glutenproject.substrait.expression.{BooleanLiteralNode, CastNode, ExpressionBuilder, ExpressionNode, SelectionNode}
+import io.glutenproject.substrait.expression.{BooleanLiteralNode, ExpressionBuilder, ExpressionNode, SelectionNode}
 import io.glutenproject.utils.{CHInputPartitionsUtil, ExpressionDocUtil}
 
 import org.apache.spark.internal.Logging
@@ -62,7 +62,7 @@ class CHTransformerApi extends TransformerApi with Logging {
               val node = ExpressionConverter
                 .replaceWithExpressionTransformer(expr, outputAttributes)
                 .doTransform(substraitContext.registeredFunction)
-              if (!node.isInstanceOf[SelectionNode] && !node.isInstanceOf[CastNode]) {
+              if (!node.isInstanceOf[SelectionNode]) {
                 // This is should not happen.
                 logDebug("Expressions are not supported in HashPartitioning.")
                 false
@@ -84,18 +84,30 @@ class CHTransformerApi extends TransformerApi with Logging {
       relation: HadoopFsRelation,
       selectedPartitions: Array[PartitionDirectory],
       output: Seq[Attribute],
+      bucketedScan: Boolean,
       optionalBucketSet: Option[BitSet],
       optionalNumCoalescedBuckets: Option[Int],
       disableBucketedScan: Boolean): Seq[InputPartition] = {
     if (relation.location.isInstanceOf[ClickHouseFileIndex]) {
       // Generate NativeMergeTreePartition for MergeTree
-      relation.location.asInstanceOf[ClickHouseFileIndex].partsPartitions
+      relation.location
+        .asInstanceOf[ClickHouseFileIndex]
+        .partsPartitions(
+          relation,
+          selectedPartitions,
+          output,
+          bucketedScan,
+          optionalBucketSet,
+          optionalNumCoalescedBuckets,
+          disableBucketedScan
+        )
     } else {
       // Generate FilePartition for Parquet
       CHInputPartitionsUtil(
         relation,
         selectedPartitions,
         output,
+        bucketedScan,
         optionalBucketSet,
         optionalNumCoalescedBuckets,
         disableBucketedScan).genInputPartitionSeq()
@@ -158,6 +170,27 @@ class CHTransformerApi extends TransformerApi with Logging {
     val planOptKey = settingPrefix + "query_plan_enable_optimizations"
     if (!nativeConfMap.containsKey(planOptKey)) {
       nativeConfMap.put(planOptKey, "false")
+    }
+
+    // Respect spark config spark.sql.orc.compression.codec for CH backend
+    // TODO: consider compression or orc.compression in table options.
+    val orcCompressionKey = settingPrefix + "output_format_orc_compression_method"
+    if (!nativeConfMap.containsKey(orcCompressionKey)) {
+      if (nativeConfMap.containsKey("spark.sql.orc.compression.codec")) {
+        val compression = nativeConfMap.get("spark.sql.orc.compression.codec").toLowerCase()
+        compression match {
+          case "none" => nativeConfMap.put(orcCompressionKey, "none")
+          case "uncompressed" => nativeConfMap.put(orcCompressionKey, "none")
+          case "snappy" => nativeConfMap.put(orcCompressionKey, "snappy")
+          case "zlib" => nativeConfMap.put(orcCompressionKey, "zlib")
+          case "zstd" => nativeConfMap.put(orcCompressionKey, "zstd")
+          case "lz4" => nativeConfMap.put(orcCompressionKey, "lz4")
+          case _ =>
+            throw new UnsupportedOperationException(s"Not supported ORC compression: $compression")
+        }
+      } else {
+        nativeConfMap.put(orcCompressionKey, "snappy")
+      }
     }
   }
 
@@ -229,5 +262,9 @@ class CHTransformerApi extends TransformerApi with Logging {
       Lists.newArrayList(childNode, new BooleanLiteralNode(nullOnOverflow), toTypeNodes)
     val typeNode = ConverterUtils.getTypeNode(dataType, nullable)
     ExpressionBuilder.makeScalarFunction(functionId, expressionNodes, typeNode)
+  }
+
+  override def getNativePlanString(substraitPlan: Array[Byte], details: Boolean): String = {
+    throw new UnsupportedOperationException("CH backend does not support this method")
   }
 }

@@ -13,6 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -w -ffunction-sections -fdata-sections")
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -w -ffunction-sections -fdata-sections")
+set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--no-export-dynamic -Wl,--gc-sections")
+
 if (COMPILER_CLANG AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 16)
     set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} --ld-path=${LLD_WRAPPER}")
 else()
@@ -56,6 +60,7 @@ include_directories(
         ${ClickHouse_SOURCE_DIR}/src
         ${ClickHouse_SOURCE_DIR}/base
         ${ClickHouse_SOURCE_DIR}/contrib/orc/c++/include
+        ${ClickHouse_SOURCE_DIR}/contrib/arrow-cmake/cpp/src/orc/c++/include
         ${CMAKE_BINARY_DIR}/contrib/orc/c++/include
         ${ClickHouse_SOURCE_DIR}/contrib/azure/sdk/storage/azure-storage-blobs/inc
         ${ClickHouse_SOURCE_DIR}/contrib/azure/sdk/core/azure-core/inc

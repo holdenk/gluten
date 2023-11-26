@@ -19,7 +19,11 @@ package io.glutenproject.memory.nmm;
 import io.glutenproject.GlutenConfig;
 import io.glutenproject.backendsapi.BackendsApiManager;
 import io.glutenproject.memory.alloc.NativeMemoryAllocators;
+import io.glutenproject.memory.memtarget.KnownNameAndStats;
+import io.glutenproject.proto.MemoryUsageStats;
 
+import com.google.protobuf.InvalidProtocolBufferException;
+import org.apache.spark.memory.SparkMemoryUtil;
 import org.apache.spark.util.TaskResource;
 import org.apache.spark.util.Utils;
 import org.slf4j.Logger;
@@ -54,12 +58,24 @@ public class NativeMemoryManager implements TaskResource {
     return this.nativeInstanceHandle;
   }
 
-  public byte[] collectMemoryUsage() {
-    return collectMemoryUsage(nativeInstanceHandle);
+  public MemoryUsageStats collectMemoryUsage() {
+    try {
+      return MemoryUsageStats.parseFrom(collectMemoryUsage(nativeInstanceHandle));
+    } catch (InvalidProtocolBufferException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   public long shrink(long size) {
     return shrink(nativeInstanceHandle, size);
+  }
+
+  // Hold this memory manager. The underlying memory pools will be released as lately as this
+  // memory manager gets destroyed. Which means, a call to this function would make sure the
+  // memory blocks directly or indirectly managed by this manager, be guaranteed safe to
+  // access during the period that this manager is alive.
+  public void hold() {
+    hold(nativeInstanceHandle);
   }
 
   private static native long shrink(long memoryManagerId, long size);
@@ -75,15 +91,31 @@ public class NativeMemoryManager implements TaskResource {
 
   private static native byte[] collectMemoryUsage(long memoryManagerId);
 
+  private static native void hold(long memoryManagerId);
+
   @Override
   public void release() throws Exception {
+    LOGGER.debug(
+        SparkMemoryUtil.prettyPrintStats(
+            "About to release memory manager, usage dump:",
+            new KnownNameAndStats() {
+              @Override
+              public String name() {
+                return name;
+              }
+
+              @Override
+              public MemoryUsageStats stats() {
+                return collectMemoryUsage();
+              }
+            }));
     release(nativeInstanceHandle);
     if (listener.getUsedBytes() != 0) {
       LOGGER.warn(
-          name
-              + " Reservation listener still reserved non-zero bytes, which may cause "
-              + "memory leak, size: "
-              + Utils.bytesToString(listener.getUsedBytes()));
+          String.format(
+              "%s Reservation listener %s still reserved non-zero bytes, "
+                  + "which may cause memory leak, size: %s. ",
+              name, listener.toString(), Utils.bytesToString(listener.getUsedBytes())));
     }
   }
 

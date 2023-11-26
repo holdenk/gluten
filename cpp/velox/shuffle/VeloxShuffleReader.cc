@@ -22,8 +22,8 @@
 #include "VeloxShuffleUtils.h"
 #include "memory/VeloxColumnarBatch.h"
 #include "utils/Common.h"
+#include "utils/Compression.h"
 #include "utils/VeloxArrowUtils.h"
-#include "utils/compression.h"
 #include "utils/macros.h"
 #include "velox/serializers/PrestoSerializer.h"
 #include "velox/vector/ComplexVector.h"
@@ -121,7 +121,7 @@ VectorPtr readFlatVectorStringView(
   auto nulls = buffers[bufferIdx++];
   auto lengthBuffer = buffers[bufferIdx++];
   auto valueBuffer = buffers[bufferIdx++];
-  const auto* rawLength = lengthBuffer->as<BinaryArrayLengthType>();
+  const auto* rawLength = lengthBuffer->as<BinaryArrayLengthBufferType>();
 
   std::vector<BufferPtr> stringBuffers;
   auto values = AlignedBuffer::allocate<char>(sizeof(StringView) * length, pool);
@@ -161,10 +161,10 @@ VectorPtr readFlatVector<TypeKind::VARBINARY>(
   return readFlatVectorStringView(buffers, bufferIdx, length, type, pool);
 }
 
-std::unique_ptr<ByteStream> toByteStream(uint8_t* data, int32_t size) {
-  auto byteStream = std::make_unique<ByteStream>();
-  ByteRange byteRange{data, size, 0};
-  byteStream->resetInput({byteRange});
+std::unique_ptr<ByteInputStream> toByteStream(uint8_t* data, int32_t size) {
+  std::vector<ByteRange> byteRanges;
+  byteRanges.push_back(ByteRange{data, size, 0});
+  auto byteStream = std::make_unique<ByteInputStream>(byteRanges);
   return byteStream;
 }
 
@@ -263,6 +263,8 @@ void getUncompressedBuffersOneByOne(
             codec->Decompress(
                 compressLength, compressBuffer->data(), uncompressLength, uncompressBuffer->mutable_data()));
         VELOX_DCHECK_EQ(actualDecompressLength, uncompressLength);
+        // Prevent unused variable warning in optimized build.
+        ((void)actualDecompressLength);
       }
       buffers.emplace_back(convertToVeloxBuffer(uncompressBuffer));
     }

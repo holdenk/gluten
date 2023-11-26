@@ -30,6 +30,7 @@ import org.apache.spark.sql.execution.aggregate.HashAggregateExec
 import org.apache.spark.sql.execution.command.CreateDataSourceTableAsSelectCommand
 import org.apache.spark.sql.execution.datasources.InsertIntoHadoopFsRelationCommand
 import org.apache.spark.sql.expression.UDFResolver
+import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types._
 
 import scala.util.control.Breaks.breakable
@@ -305,8 +306,6 @@ object BackendSettings extends BackendSettingsApi {
     UDFResolver.resolveUdfConf(nativeConf)
   }
 
-  override def supportBucketScan(): Boolean = true
-
   override def insertPostProjectForGenerate(): Boolean = true
 
   override def skipNativeCtas(ctas: CreateDataSourceTableAsSelectCommand): Boolean = true
@@ -322,4 +321,6 @@ object BackendSettings extends BackendSettingsApi {
   override def requiredChildOrderingForWindow(): Boolean = true
 
   override def staticPartitionWriteOnly(): Boolean = true
+
+  override def allowDecimalArithmetic: Boolean = SQLConf.get.decimalOperationsAllowPrecisionLoss
 }

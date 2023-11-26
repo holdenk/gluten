@@ -43,10 +43,9 @@ import com.google.protobuf.{Any, StringValue}
 import io.substrait.proto.JoinRel
 
 import java.lang.{Long => JLong}
-import java.util.{ArrayList => JArrayList, HashMap => JHashMap}
+import java.util.{Map => JMap}
 
 import scala.collection.JavaConverters._
-import scala.util.control.Breaks.{break, breakable}
 
 trait ColumnarShuffledJoin extends BaseJoinExec {
   def isSkewJoin: Boolean
@@ -220,27 +219,29 @@ trait HashJoinLikeExecTransformer
 
   override def doTransform(substraitContext: SubstraitContext): TransformContext = {
 
-    def transformAndGetOutput(plan: SparkPlan): (RelNode, Seq[Attribute], Boolean) = {
+    def transformAndGetOutput(plan: SparkPlan): (RelNode, Seq[Attribute], Boolean, JLong) = {
       plan match {
         case p: TransformSupport =>
           val transformContext = p.doTransform(substraitContext)
-          (transformContext.root, transformContext.outputAttributes, false)
+          (transformContext.root, transformContext.outputAttributes, false, -1L)
         case _ =>
           val readRel = RelBuilder.makeReadRel(
-            new JArrayList[Attribute](plan.output.asJava),
+            plan.output.asJava,
             substraitContext,
             -1
           ) /* A special handling in Join to delay the rel registration. */
-          (readRel, plan.output, true)
+          // Make sure create a new read relId for the stream side first
+          // before the one of the build side, when there is no shuffle on the build side
+          (readRel, plan.output, true, substraitContext.nextRelId())
       }
     }
 
     val joinParams = new JoinParams
-    val (inputStreamedRelNode, inputStreamedOutput, isStreamedReadRel) =
+    val (inputStreamedRelNode, inputStreamedOutput, isStreamedReadRel, streamdReadRelId) =
       transformAndGetOutput(streamedPlan)
     joinParams.isStreamedReadRel = isStreamedReadRel
 
-    val (inputBuildRelNode, inputBuildOutput, isBuildReadRel) =
+    val (inputBuildRelNode, inputBuildOutput, isBuildReadRel, buildReadRelId) =
       transformAndGetOutput(buildPlan)
     joinParams.isBuildReadRel = isBuildReadRel
 
@@ -249,10 +250,10 @@ trait HashJoinLikeExecTransformer
 
     // Register the ReadRel to correct operator Id.
     if (joinParams.isStreamedReadRel) {
-      substraitContext.registerRelToOperator(operatorId)
+      substraitContext.registerRelToOperator(operatorId, streamdReadRelId)
     }
     if (joinParams.isBuildReadRel) {
-      substraitContext.registerRelToOperator(operatorId)
+      substraitContext.registerRelToOperator(operatorId, buildReadRelId)
     }
 
     if (JoinUtils.preProjectionNeeded(streamedKeyExprs)) {
@@ -336,7 +337,7 @@ object HashJoinLikeExecTransformer {
       leftType: DataType,
       rightNode: ExpressionNode,
       rightType: DataType,
-      functionMap: JHashMap[String, JLong]): ExpressionNode = {
+      functionMap: JMap[String, JLong]): ExpressionNode = {
     val functionId = ExpressionBuilder.newScalarFunction(
       functionMap,
       ConverterUtils.makeFuncName(ExpressionNames.EQUAL, Seq(leftType, rightType)))
@@ -350,7 +351,7 @@ object HashJoinLikeExecTransformer {
   def makeAndExpression(
       leftNode: ExpressionNode,
       rightNode: ExpressionNode,
-      functionMap: JHashMap[String, JLong]): ExpressionNode = {
+      functionMap: JMap[String, JLong]): ExpressionNode = {
     val functionId = ExpressionBuilder.newScalarFunction(
       functionMap,
       ConverterUtils.makeFuncName(ExpressionNames.AND, Seq(BooleanType, BooleanType)))
@@ -420,39 +421,6 @@ abstract class BroadcastHashJoinExecTransformer(
     BackendsApiManager.getBroadcastApiInstance
       .collectExecutionBroadcastHashTableId(executionId, context.buildHashTableId)
 
-    val buildRDD = if (streamedRDD.isEmpty) {
-      // Stream plan itself contains scan and has no input rdd,
-      // so the number of partitions cannot be decided here.
-      BroadcastBuildSideRDD(sparkContext, broadcast, context)
-    } else {
-      // Try to get the number of partitions from a non-broadcast RDD.
-      val nonBroadcastRDD = streamedRDD.find(rdd => !rdd.isInstanceOf[BroadcastBuildSideRDD])
-      if (nonBroadcastRDD.isDefined) {
-        BroadcastBuildSideRDD(
-          sparkContext,
-          broadcast,
-          context,
-          nonBroadcastRDD.orNull.getNumPartitions)
-      } else {
-        // When all stream RDDs are broadcast RDD, the number of partitions can be undecided
-        // because stream plan may contain scan.
-        var partitions = -1
-        breakable {
-          for (rdd <- streamedRDD) {
-            try {
-              partitions = rdd.getNumPartitions
-              break
-            } catch {
-              case _: Throwable =>
-              // The partitions of this RDD is not decided yet.
-            }
-          }
-        }
-        // If all the stream RDDs are broadcast RDD,
-        // the number of partitions will be decided later in whole stage transformer.
-        BroadcastBuildSideRDD(sparkContext, broadcast, context, partitions)
-      }
-    }
-    streamedRDD :+ buildRDD
+    streamedRDD :+ BroadcastBuildSideRDD(sparkContext, broadcast, context)
   }
 }

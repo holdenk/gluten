@@ -45,6 +45,7 @@ trait TransformerApi {
       relation: HadoopFsRelation,
       selectedPartitions: Array[PartitionDirectory],
       output: Seq[Attribute],
+      bucketedScan: Boolean,
       optionalBucketSet: Option[BitSet],
       optionalNumCoalescedBuckets: Option[Int],
       disableBucketedScan: Boolean): Seq[InputPartition]
@@ -82,4 +83,6 @@ trait TransformerApi {
       dataType: DecimalType,
       nullable: Boolean,
       nullOnOverflow: Boolean): ExpressionNode
+
+  def getNativePlanString(substraitPlan: Array[Byte], details: Boolean): String
 }

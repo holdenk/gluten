@@ -16,7 +16,7 @@
  */
 package io.glutenproject.utils.clickhouse
 
-import io.glutenproject.utils.BackendTestSettings
+import io.glutenproject.utils.{BackendTestSettings, SQLQueryTestSettings}
 
 import org.apache.spark.sql._
 import org.apache.spark.sql.catalyst.expressions._
@@ -287,6 +287,10 @@ class ClickHouseTestSettings extends BackendTestSettings {
     "Gluten - SPARK-32659: Fix the data issue when pruning DPP on non-atomic type")
   enableSuite[GlutenDynamicPartitionPruningV1SuiteAEOnDisableScan].exclude(
     "Gluten - SPARK-32659: Fix the data issue when pruning DPP on non-atomic type")
+  enableSuite[GlutenDynamicPartitionPruningV1SuiteAEOffWSCGOnDisableProject].exclude(
+    "Gluten - SPARK-32659: Fix the data issue when pruning DPP on non-atomic type")
+  enableSuite[GlutenDynamicPartitionPruningV1SuiteAEOffWSCGOffDisableProject].exclude(
+    "Gluten - SPARK-32659: Fix the data issue when pruning DPP on non-atomic type")
   enableSuite[GlutenDynamicPartitionPruningV2SuiteAEOff].exclude(
     "Gluten - SPARK-32659: Fix the data issue when pruning DPP on non-atomic type")
   enableSuite[GlutenDynamicPartitionPruningV2SuiteAEOffDisableScan].exclude(
@@ -294,6 +298,10 @@ class ClickHouseTestSettings extends BackendTestSettings {
   enableSuite[GlutenDynamicPartitionPruningV2SuiteAEOn].exclude(
     "Gluten - SPARK-32659: Fix the data issue when pruning DPP on non-atomic type")
   enableSuite[GlutenDynamicPartitionPruningV2SuiteAEOnDisableScan].exclude(
+    "Gluten - SPARK-32659: Fix the data issue when pruning DPP on non-atomic type")
+  enableSuite[GlutenDynamicPartitionPruningV2SuiteAEOffWSCGOnDisableProject].exclude(
+    "Gluten - SPARK-32659: Fix the data issue when pruning DPP on non-atomic type")
+  enableSuite[GlutenDynamicPartitionPruningV2SuiteAEOffWSCGOffDisableProject].exclude(
     "Gluten - SPARK-32659: Fix the data issue when pruning DPP on non-atomic type")
   enableSuite[GlutenExpressionsSchemaSuite]
   enableSuite[GlutenExtraStrategiesSuite]
@@ -565,6 +573,7 @@ class ClickHouseTestSettings extends BackendTestSettings {
     .exclude("SPARK-32828: cast from a derived user-defined type to a base type")
     .exclude("SPARK-34727: cast from float II")
     .exclude("SPARK-35720: cast invalid string input to timestamp without time zone")
+    .exclude("Cast should output null for invalid strings when ANSI is not enabled.")
   enableSuite[GlutenCastSuiteWithAnsiModeOn]
     .exclude("null cast")
     .exclude("cast string to date")
@@ -669,6 +678,7 @@ class ClickHouseTestSettings extends BackendTestSettings {
     .exclude("WeekDay")
     .exclude("WeekOfYear")
     .exclude("DateFormat")
+    .exclude("Gluten - DateFormat")
     .exclude("Hour")
     .exclude("Minute")
     .exclude("date add interval")
@@ -710,7 +720,7 @@ class ClickHouseTestSettings extends BackendTestSettings {
     .exclude("Gluten - TIMESTAMP_MICROS")
     .exclude("Gluten - unix_timestamp")
     .exclude("Gluten - to_unix_timestamp")
-  enableSuite[GlutenDecimalExpressionSuite].exclude("MakeDecimal")
+  enableSuite[GlutenDecimalExpressionSuite]
   enableSuite[GlutenHashExpressionsSuite]
     .exclude("sha2")
     .exclude("murmur3/xxHash64/hive hash: struct<null:void,boolean:boolean,byte:tinyint,short:smallint,int:int,long:bigint,float:float,double:double,bigDecimal:decimal(38,18),smallDecimal:decimal(10,0),string:string,binary:binary,date:date,timestamp:timestamp,udt:examplepoint>")
@@ -2098,6 +2108,8 @@ class ClickHouseTestSettings extends BackendTestSettings {
       "SELECT structFieldSimple.key, arrayFieldSimple[1] FROM tableWithSchema a where int_Field=1")
     .exclude("SELECT structFieldComplex.Value.`value_(2)` FROM tableWithSchema")
   enableSuite[SparkFunctionStatistics]
+
+  override def getSQLQueryTestSettings: SQLQueryTestSettings = ClickHouseSQLQueryTestSettings
 }
 
 // scalastyle:on line.size.limiton

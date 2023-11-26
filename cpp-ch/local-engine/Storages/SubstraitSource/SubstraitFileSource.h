@@ -38,6 +38,7 @@ public:
     explicit FileReaderWrapper(FormatFilePtr file_) : file(file_) { }
     virtual ~FileReaderWrapper() = default;
     virtual bool pull(DB::Chunk & chunk) = 0;
+    virtual void applyKeyCondition(std::shared_ptr<const DB::KeyCondition> /*key_condition*/) { }
 
 protected:
     FormatFilePtr file;
@@ -52,7 +53,13 @@ class NormalFileReader : public FileReaderWrapper
 public:
     NormalFileReader(FormatFilePtr file_, DB::ContextPtr context_, const DB::Block & to_read_header_, const DB::Block & output_header_);
     ~NormalFileReader() override = default;
+
     bool pull(DB::Chunk & chunk) override;
+
+    void applyKeyCondition(std::shared_ptr<const DB::KeyCondition> key_condition) override
+    {
+        input_format->input->setKeyCondition(key_condition);
+    }
 
 private:
     DB::ContextPtr context;
@@ -87,7 +94,7 @@ private:
     size_t block_size;
 };
 
-class SubstraitFileSource : public DB::ISource
+class SubstraitFileSource : public DB::SourceWithKeyCondition
 {
 public:
     SubstraitFileSource(DB::ContextPtr context_, const DB::Block & header_, const substrait::ReadRel::LocalFiles & file_infos);
@@ -95,43 +102,21 @@ public:
 
     String getName() const override { return "SubstraitFileSource"; }
 
-    void applyFilters(std::vector<SourceFilter> filters) const;
-    std::vector<String> getPartitionKeys() const;
-    DB::String getFileFormat() const;
+    void setKeyCondition(const DB::ActionsDAG::NodeRawConstPtrs & nodes, DB::ContextPtr context_) override;
 
 protected:
     DB::Chunk generate() override;
 
 private:
     DB::ContextPtr context;
-    DB::Block output_header; /// Sample header before flatten, may contains partitions keys
-    DB::Block flatten_output_header; // Sample header after flatten, include partition keys
-    DB::Block to_read_header; // Sample header after flatten, not include partition keys
+    DB::Block output_header; /// Sample header may contains partitions keys
+    DB::Block to_read_header; // Sample header not include partition keys
     FormatFiles files;
-    DB::NamesAndTypesList file_schema; /// The column names and types in the file
-
-    /// The columns to skip flatten based on output_header
-    /// Notice that not all tuple type columns need to be flatten.
-    /// E.g. if parquet file schema is `info struct<name string, age int>`, and output_header is `info Tuple(name String, age Int32)`
-    /// then there is not need to flatten `info` column, because null value of `info` column will be represented as null value of `info.name` and `info.age`, which is obviously wrong.
-    std::unordered_set<size_t> columns_to_skip_flatten;
-    std::vector<DB::KeyCondition> filters;
 
     UInt32 current_file_index = 0;
     std::unique_ptr<FileReaderWrapper> file_reader;
     ReadBufferBuilderPtr read_buffer_builder;
 
     bool tryPrepareReader();
-
-    // E.g we have flatten columns correspond to header {a:int, b.x.i: int, b.x.j: string, b.y: string}
-    // but we want to fold all the flatten struct columns into one struct column,
-    // {a:int, b: {x: {i: int, j: string}, y: string}}
-    // Notice, don't support list with named struct. ClickHouse may take advantage of this to support
-    // nested table, but not the case in spark.
-    static DB::Block
-    foldFlattenColumns(const DB::Columns & cols, const DB::Block & header, const std::unordered_set<size_t> & columns_to_skip_flatten);
-
-    static DB::ColumnWithTypeAndName
-    foldFlattenColumn(DB::DataTypePtr col_type, const std::string & col_name, size_t & pos, const DB::Columns & cols);
 };
 }

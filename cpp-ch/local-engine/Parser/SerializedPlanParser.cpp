@@ -57,13 +57,16 @@
 #include <Parser/JoinRelParser.h>
 #include <Parser/RelParser.h>
 #include <Parser/TypeParser.h>
+#include <Parser/MergeTreeRelParser.h>
 #include <Parsers/ASTIdentifier.h>
 #include <Parsers/ExpressionListParsers.h>
 #include <Processors/Executors/PullingAsyncPipelineExecutor.h>
 #include <Processors/Formats/Impl/ArrowBlockOutputFormat.h>
+#include <Processors/QueryPlan/AggregatingStep.h>
 #include <Processors/QueryPlan/ExpressionStep.h>
 #include <Processors/QueryPlan/FilterStep.h>
 #include <Processors/QueryPlan/LimitStep.h>
+#include <Processors/QueryPlan/MergingAggregatedStep.h>
 #include <Processors/QueryPlan/Optimizations/QueryPlanOptimizationSettings.h>
 #include <Processors/QueryPlan/QueryPlan.h>
 #include <Processors/QueryPlan/ReadFromPreparedSource.h>
@@ -332,7 +335,7 @@ DB::QueryPlanPtr SerializedPlanParser::parseMergeTreeTable(const substrait::Read
                 "",
                 MergeTreeData::MergingParams(),
                 buildMergeTreeSettings());
-            custom_storage_merge_tree->loadDataParts(false);
+            custom_storage_merge_tree->loadDataParts(false, std::nullopt);
             return custom_storage_merge_tree;
         });
     query_context.storage_snapshot = std::make_shared<StorageSnapshot>(*storage, metadata);
@@ -367,7 +370,7 @@ DB::QueryPlanPtr SerializedPlanParser::parseMergeTreeTable(const substrait::Read
         query_context.storage_snapshot,
         *query_info,
         context,
-        4096 * 2,
+        context->getSettingsRef().max_block_size,
         1);
     QueryPlanPtr query = std::make_unique<QueryPlan>();
     steps.emplace_back(read_step.get());
@@ -436,7 +439,9 @@ QueryPlanPtr SerializedPlanParser::parse(std::unique_ptr<substrait::Plan> plan)
         namespace pb_util = google::protobuf::util;
         pb_util::JsonOptions options;
         std::string json;
-        pb_util::MessageToJsonString(*plan, &json, options);
+        auto s = pb_util::MessageToJsonString(*plan, &json, options);
+        if (!s.ok())
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "Can not convert Substrait Plan to Json");
         LOG_DEBUG(&Poco::Logger::get("SerializedPlanParser"), "substrait plan:\n{}", json);
     }
     parseExtensions(plan->extensions());
@@ -563,7 +568,10 @@ QueryPlanPtr SerializedPlanParser::parseOp(const substrait::Rel & rel, std::list
             }
             else
             {
-                query_plan = parseMergeTreeTable(read, steps);
+                MergeTreeRelParser mergeTreeParser(this, context, query_context, global_context);
+                std::list<const substrait::Rel *> stack;
+                query_plan = mergeTreeParser.parse(std::make_unique<QueryPlan>(), rel, stack);
+                steps = mergeTreeParser.getSteps();
             }
             break;
         }
@@ -729,10 +737,10 @@ SerializedPlanParser::getFunctionName(const std::string & function_signature, co
     }
     else if (function_name == "make_decimal")
     {
-        if (args.size() < 3)
-            throw Exception(ErrorCodes::BAD_ARGUMENTS, "make_decimal function requires at least 3 args.");
+        if (args.size() < 2)
+            throw Exception(ErrorCodes::BAD_ARGUMENTS, "make_decimal function requires at least 2 args.");
         ch_function_name = SCALAR_FUNCTIONS.at(function_name);
-        auto null_on_overflow = args.at(2).value().literal().boolean();
+        auto null_on_overflow = args.at(1).value().literal().boolean();
         if (null_on_overflow)
             ch_function_name = ch_function_name + "OrNull";
     }
@@ -1002,8 +1010,8 @@ const ActionsDAG::Node * SerializedPlanParser::parseFunctionWithDAG(
         }
         else if (startsWith(function_signature, "make_decimal:"))
         {
-            if (scalar_function.arguments().size() < 3)
-                throw Exception(ErrorCodes::BAD_ARGUMENTS, "make_decimal function requires at least three args.");
+            if (scalar_function.arguments().size() < 2)
+                throw Exception(ErrorCodes::BAD_ARGUMENTS, "make_decimal function requires at least 2 args.");
 
             ActionsDAG::NodeRawConstPtrs new_args;
             new_args.reserve(3);
@@ -1654,45 +1662,11 @@ const ActionsDAG::Node * SerializedPlanParser::parseExpression(ActionsDAGPtr act
                 /// FIXME. Now we treet '1900-01-01' as null value. Not realy good.
                 /// Updating `toDate32OrNull` to return null if the string is invalid is not acceptable by
                 /// ClickHouse (https://github.com/ClickHouse/ClickHouse/issues/47120).
-
-                /// isNotNull(toDate32OrNull(date))
-                String to_date_function_name = "toDate32OrNull";
-                const auto * date_node = toFunctionNode(actions_dag, to_date_function_name, args);
-                const auto * date_is_not_null_node = toFunctionNode(actions_dag, "isNotNull", {date_node});
-
-                /// isNotNull(toDate32(parseDateTimeOrNull(substring(trimLeft(date), 1, 10), '%Y-%m-%d'))
-                const auto * substr_offset_node = add_column(std::make_shared<DataTypeInt32>(), 1);
-                const auto * substr_length_node = add_column(std::make_shared<DataTypeInt32>(), 10);
-                const auto * trim_string_node = toFunctionNode(actions_dag, "trimLeft", {args[0]});
-                const auto * substr_node = toFunctionNode(actions_dag, "substring", {trim_string_node, substr_offset_node, substr_length_node});
-                const auto * date_format_node = add_column(std::make_shared<DataTypeString>(), "%Y-%m-%d");
-                const auto * parse_date_node = toFunctionNode(actions_dag, "parseDateTimeOrNull", {substr_node, date_format_node});
-                const auto * parse_date_is_not_null_node = toFunctionNode(actions_dag, "isNotNull", {parse_date_node});
-
-                /// toDate32(parseDateTimeOrNull(substring(trimLeft(date), 1, 10), '%Y-%m-%d'))
-                const auto * date_node_from_parse = toFunctionNode(actions_dag, "toDate32", {parse_date_node});
-                /// const null node
-                const auto * null_const_node = add_column(makeNullable(std::make_shared<DataTypeDate32>()), Field{});
-
-                /**
-                 * Parse toDate(s) as
-                 * if (isNotNull(toDate32OrNull))
-                 *  toDate32OrNull(s)
-                 * else if (isNotNull(parseDateTimeOrNull(substring(trimLeft(s)), 1, 10), '%Y-%m-%d'))
-                 *  toDate32(parseDateTimeOrNull(substring(trimLeft(s)), 1, 10), '%Y-%m-%d'))
-                 * else
-                 *  null
-                */
-                const auto * to_date_multi_if_node = toFunctionNode(actions_dag, "multiIf", {
-                    date_is_not_null_node,
-                    date_node,
-                    parse_date_is_not_null_node,
-                    date_node_from_parse,
-                    null_const_node
-                }); 
+                String function_name = "spark_to_date";
+                const auto * date_node = toFunctionNode(actions_dag, function_name, args);
                 const auto * zero_date_col_node = add_column(std::make_shared<DataTypeString>(), "1900-01-01");
-                const auto * zero_date_node = toFunctionNode(actions_dag, to_date_function_name, {zero_date_col_node});
-                DB::ActionsDAG::NodeRawConstPtrs nullif_args = {to_date_multi_if_node, zero_date_node};
+                const auto * zero_date_node = toFunctionNode(actions_dag, function_name, {zero_date_col_node});
+                DB::ActionsDAG::NodeRawConstPtrs nullif_args = {date_node, zero_date_node};
                 function_node = toFunctionNode(actions_dag, "nullIf", nullif_args);
             }
             else if (substrait_type.has_binary())
@@ -1839,6 +1813,7 @@ const ActionsDAG::Node * SerializedPlanParser::parseExpression(ActionsDAGPtr act
                 DB::ActionsDAG::NodeRawConstPtrs cast_args({function_node, add_column(type, true), add_column(type, Field())});
                 auto cast = FunctionFactory::instance().get("if", context);
                 function_node = toFunctionNode(actions_dag, "if", cast_args);
+                actions_dag->addOrReplaceInOutputs(*function_node);
             }
             return function_node;
         }
@@ -1880,7 +1855,9 @@ QueryPlanPtr SerializedPlanParser::parse(const std::string & plan)
 QueryPlanPtr SerializedPlanParser::parseJson(const std::string & json_plan)
 {
     auto plan_ptr = std::make_unique<substrait::Plan>();
-    google::protobuf::util::JsonStringToMessage(google::protobuf::stringpiece_internal::StringPiece(json_plan.c_str()), plan_ptr.get());
+    auto s = google::protobuf::util::JsonStringToMessage(absl::string_view(json_plan.c_str()), plan_ptr.get());
+    if (!s.ok())
+        throw Exception(ErrorCodes::CANNOT_PARSE_PROTOBUF_SCHEMA, "Parse substrait::Plan from json string failed: {}", s.ToString());
     return parse(std::move(plan_ptr));
 }
 
@@ -2265,21 +2242,19 @@ bool LocalExecutor::checkAndSetDefaultBlock(size_t current_block_columns, bool h
     {
         return has_next_blocks;
     }
-    auto cols = currentBlock().getColumnsWithTypeAndName();
-    for (const auto & col : cols)
+    bool should_set_default_value = false;
+    for (auto p :  query_pipeline.getProcessors())
     {
-        String col_name = col.name;
-        DataTypePtr col_type = col.type;
-        if (col_name.compare(0, 4, "sum#") != 0 && col_name.compare(0, 4, "max#") != 0 && col_name.compare(0, 4, "min#") != 0
-            && col_name.compare(0, 6, "count#") != 0)
+        if (p->getName() == "MergingAggregatedTransform")
         {
-            return false;
-        }
-        if (!isInteger(col_type) && !col_type->isNullable())
-        {
-            return false;
+            DB::MergingAggregatedStep * agg_step = static_cast<DB::MergingAggregatedStep *>(p->getQueryPlanStep());
+            auto query_params = agg_step->getParams();
+            should_set_default_value = query_params.keys_size == 0;
         }
     }
+    if (!should_set_default_value)
+        return false;
+    auto cols = currentBlock().getColumnsWithTypeAndName();
     for (size_t i = 0; i < cols.size(); i++)
     {
         const DB::ColumnWithTypeAndName col = cols[i];
