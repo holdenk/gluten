@@ -126,32 +126,36 @@ function compile {
 
   export simdjson_SOURCE=BUNDLED
   export duckdb_SOURCE=BUNDLED
-  if [ $ARCH == 'x86_64' ]; then
-    make $COMPILE_TYPE EXTRA_CMAKE_FLAGS="${COMPILE_OPTION}"
-  elif [[ "$ARCH" == 'arm64' || "$ARCH" == 'aarch64' ]]; then
-    CPU_TARGET=$ARCH make $COMPILE_TYPE EXTRA_CMAKE_FLAGS="${COMPILE_OPTION}"
+  if [ command -v docker-compose ]; then
+    docker-compose build ubuntu-cpp
+    docker-compose run -e CPU_TARGET=$ARCH --rm ubuntu-cpp $COMPILE_TYPE EXTRA_CMAKE_FLAGS="${COMPILE_OPTION}"
   else
-    echo "Unsupport arch: $ARCH"
-    exit 1
-  fi
-
-  # Install deps to system as needed
-  if [ -d "_build/$COMPILE_TYPE/_deps" ]; then
-    cd _build/$COMPILE_TYPE/_deps
-    if [ -d xsimd-build ]; then
-      echo "INSTALL xsimd."
-      if [ $OS == 'Linux' ]; then
-        sudo cmake --install xsimd-build/
-      elif [ $OS == 'Darwin' ]; then
-        cmake --install xsimd-build/
-      fi
+    if [ $ARCH == 'x86_64' ]; then
+      make $COMPILE_TYPE EXTRA_CMAKE_FLAGS="${COMPILE_OPTION}"
+    elif [[ "$ARCH" == 'arm64' || "$ARCH" == 'aarch64' ]]; then
+      CPU_TARGET=$ARCH make $COMPILE_TYPE EXTRA_CMAKE_FLAGS="${COMPILE_OPTION}"
+    else
+      echo "Unsupport arch: $ARCH"
+      exit 1
     fi
-    if [ -d gtest-build ]; then
-      echo "INSTALL gtest."
-      if [ $OS == 'Linux' ]; then
-        sudo cmake --install gtest-build/
-      elif [ $OS == 'Darwin' ]; then
-        cmake --install gtest-build/
+    # Install deps to system as needed
+    if [ -d "_build/$COMPILE_TYPE/_deps" ]; then
+      cd _build/$COMPILE_TYPE/_deps
+      if [ -d xsimd-build ]; then
+	echo "INSTALL xsimd."
+	if [ $OS == 'Linux' ]; then
+          sudo cmake --install xsimd-build/
+	elif [ $OS == 'Darwin' ]; then
+          cmake --install xsimd-build/
+	fi
+      fi
+      if [ -d gtest-build ]; then
+	echo "INSTALL gtest."
+	if [ $OS == 'Linux' ]; then
+          sudo cmake --install gtest-build/
+	elif [ $OS == 'Darwin' ]; then
+          cmake --install gtest-build/
+	fi
       fi
     fi
   fi
