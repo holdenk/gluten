@@ -90,19 +90,6 @@ function apply_compilation_fixes {
 }
 
 function compile {
-  TARGET_BUILD_COMMIT=$(git rev-parse --verify HEAD)
-
-  if [ -z "${GLUTEN_VCPKG_ENABLED:-}" ] && [ $RUN_SETUP_SCRIPT == "ON" ]; then
-    if [ $OS == 'Linux' ]; then
-      setup_linux
-    elif [ $OS == 'Darwin' ]; then
-      setup_macos
-    else
-      echo "Unsupport kernel: $OS"
-      exit 1
-    fi
-  fi
-
   COMPILE_OPTION="-DVELOX_ENABLE_PARQUET=ON -DVELOX_BUILD_TESTING=OFF -DVELOX_BUILD_TEST_UTILS=OFF -DVELOX_ENABLE_DUCKDB=OFF -DVELOX_ENABLE_PARSE=OFF"
   if [ $ENABLE_BENCHMARK == "ON" ]; then
     COMPILE_OPTION="$COMPILE_OPTION -DVELOX_BUILD_BENCHMARKS=ON"
@@ -126,38 +113,61 @@ function compile {
 
   export simdjson_SOURCE=BUNDLED
   export duckdb_SOURCE=BUNDLED
-  if [ command -v docker-compose ]; then
-    docker-compose build ubuntu-cpp
-    docker-compose run -e CPU_TARGET=$ARCH --rm ubuntu-cpp $COMPILE_TYPE EXTRA_CMAKE_FLAGS="${COMPILE_OPTION}"
+  export COMPILE_TYPE
+  export COMPILE_OPTION
+  if command -v docker-compose; then
+    docker_compile
   else
-    if [ $ARCH == 'x86_64' ]; then
-      make $COMPILE_TYPE EXTRA_CMAKE_FLAGS="${COMPILE_OPTION}"
-    elif [[ "$ARCH" == 'arm64' || "$ARCH" == 'aarch64' ]]; then
-      CPU_TARGET=$ARCH make $COMPILE_TYPE EXTRA_CMAKE_FLAGS="${COMPILE_OPTION}"
+    classic_compile
+  fi
+}
+
+function docker_compile {
+  docker-compose build ubuntu-cpp
+  docker-compose run --rm ubuntu-cpp "cd /velox; make $COMPILE_TYPE EXTRA_CMAKE_FLAGS='${COMPILE_OPTION}'"
+}
+
+function classic_compile {
+  TARGET_BUILD_COMMIT=$(git rev-parse --verify HEAD)
+
+  if [ -z "${GLUTEN_VCPKG_ENABLED:-}" ] && [ $RUN_SETUP_SCRIPT == "ON" ]; then
+    if [ $OS == 'Linux' ]; then
+      setup_linux
+    elif [ $OS == 'Darwin' ]; then
+      setup_macos
     else
-      echo "Unsupport arch: $ARCH"
+      echo "Unsupport kernel: $OS"
       exit 1
     fi
-    # Install deps to system as needed
-    if [ -d "_build/$COMPILE_TYPE/_deps" ]; then
-      cd _build/$COMPILE_TYPE/_deps
-      if [ -d xsimd-build ]; then
-	echo "INSTALL xsimd."
-	if [ $OS == 'Linux' ]; then
-          sudo cmake --install xsimd-build/
-	elif [ $OS == 'Darwin' ]; then
-          cmake --install xsimd-build/
-	fi
-      fi
-      if [ -d gtest-build ]; then
-	echo "INSTALL gtest."
-	if [ $OS == 'Linux' ]; then
-          sudo cmake --install gtest-build/
-	elif [ $OS == 'Darwin' ]; then
-          cmake --install gtest-build/
-	fi
+  fi
+
+  if [ $ARCH == 'x86_64' ]; then
+    make $COMPILE_TYPE EXTRA_CMAKE_FLAGS="${COMPILE_OPTION}"
+  elif [[ "$ARCH" == 'arm64' || "$ARCH" == 'aarch64' ]]; then
+    CPU_TARGET=$ARCH make $COMPILE_TYPE EXTRA_CMAKE_FLAGS="${COMPILE_OPTION}"
+  else
+    echo "Unsupport arch: $ARCH"
+    exit 1
+  fi
+  # Install deps to system as needed
+  if [ -d "_build/$COMPILE_TYPE/_deps" ]; then
+    cd _build/$COMPILE_TYPE/_deps
+    if [ -d xsimd-build ]; then
+      echo "INSTALL xsimd."
+      if [ $OS == 'Linux' ]; then
+        sudo cmake --install xsimd-build/
+      elif [ $OS == 'Darwin' ]; then
+        cmake --install xsimd-build/
       fi
     fi
+    if [ -d gtest-build ]; then
+      echo "INSTALL gtest."
+      if [ $OS == 'Linux' ]; then
+        sudo cmake --install gtest-build/
+      elif [ $OS == 'Darwin' ]; then
+        cmake --install gtest-build/
+      fi
+      fi
   fi
 }
 
