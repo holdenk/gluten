@@ -124,7 +124,7 @@ function compile {
 
 function docker_compile {
   docker-compose build ubuntu-cpp
-  docker-compose run --rm ubuntu-cpp "cd /velox; make $COMPILE_TYPE EXTRA_CMAKE_FLAGS='${COMPILE_OPTION}'"
+  docker-compose run --rm ubuntu-cpp bash -c "cd /velox; make $COMPILE_TYPE EXTRA_CMAKE_FLAGS='${COMPILE_OPTION}'"
 }
 
 function classic_compile {
